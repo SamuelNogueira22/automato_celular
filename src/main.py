@@ -1,8 +1,10 @@
 import pygame
 import sys
+import random
+import copy
 
 
-TAMANHO_CELULA = 50 # Tamanho de cada quadradinho na tela em pixels
+TAMANHO_CELULA = 140 # Tamanho de cada quadradinho na tela em pixels
 LARGURA_TELA = 800
 ALTURA_TELA = 600
 
@@ -46,6 +48,54 @@ def desenhar_grade(tela, matriz, linhas, colunas):
             # Multiplicar por TAMANHO_CELULA para não ficarem colados no canto
             pygame.draw.rect(tela, cor, (y * TAMANHO_CELULA, x * TAMANHO_CELULA, TAMANHO_CELULA - 1, TAMANHO_CELULA - 1))
 
+def contar_vizinhos_em_chamas(matriz, x, y, linhas, colunas):
+    fogo_ao_redor = 0
+    # Percorre de -1 a 1 para x e y (os 8 vizinhos ao redor)
+    for i in [-1, 0, 1]:
+        for j in [-1, 0, 1]:
+            if i == 0 and j == 0:
+                continue # Pula a própria célula central
+            
+            vizinho_x = x + i
+            vizinho_y = y + j
+            
+            # Verifica se o vizinho está dentro dos limites da grade para não dar erro
+            if 0 <= vizinho_x < linhas and 0 <= vizinho_y < colunas:
+                if matriz[vizinho_x][vizinho_y] == 2: # 2 é o estado de Fogo
+                    fogo_ao_redor += 1
+                    
+    return fogo_ao_redor
+
+def calcular_proxima_geracao(matriz_atual, linhas, colunas):
+    # Cria uma cópia da matriz para servir de buffer duplo
+    proxima_matriz = copy.deepcopy(matriz_atual)
+    
+    for x in range(linhas):
+        for y in range(colunas):
+            estado = matriz_atual[x][y]
+            
+            # Regra 1: Fogo (2) vira Cinzas (3)
+            if estado == 2:
+                proxima_matriz[x][y] = 3
+                
+            # Regra 2: Cinzas (3) vira Vazio (0)
+            elif estado == 3:
+                proxima_matriz[x][y] = 0
+                
+            # Regra 3: Árvore (1) pega fogo se tiver >= 1 vizinho em chamas
+            elif estado == 1:
+                fogo_perto = contar_vizinhos_em_chamas(matriz_atual, x, y, linhas, colunas)
+                if fogo_perto >= 1:
+                    proxima_matriz[x][y] = 2
+                    
+            # Regra 4: Vazio (0) tem probabilidade de ~0.5% de virar Árvore (1)
+            elif estado == 0:
+                # random.random() gera um número entre 0.0 e 1.0 (0.005 = 0.5%)
+                if random.random() <= 0.005:
+                    proxima_matriz[x][y] = 1
+                    
+    return proxima_matriz
+
 
 def main():
     # Carrega o mapa inicial
@@ -72,7 +122,8 @@ def main():
         
         
         if not simulacao_pausada:
-            pass # Por enquanto não faz nada, só vamos testar o visual
+            grade_atual = calcular_proxima_geracao(grade_atual, linhas, colunas)
+            pygame.time.delay(300) # Pausa de 300 milissegundos para podermos ver a animação
             
         # Pinta os quadradinhos na tela
         desenhar_grade(tela, grade_atual, linhas, colunas)
