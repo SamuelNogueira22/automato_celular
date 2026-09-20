@@ -15,7 +15,7 @@ COR_FOGO = (255, 69, 0)           # 2: Fogo
 COR_CINZAS = (105, 105, 105)      # 3: Cinzas
 COR_FUNDO = (0, 0, 0)             # Borda das células
 COR_PAINEL = (25, 25, 25)         # Fundo do painel
-COR_TEXTO_DESTAQUE = (255, 215, 0) # Dourado
+COR_TEXTO_DESTAQUE = (255, 215, 0) 
 
 def carregar_estado_inicial(nome_arquivo):
     matriz = []
@@ -30,6 +30,24 @@ def carregar_estado_inicial(nome_arquivo):
             matriz.append(linha_atual)
             
     return linhas_total, colunas_total, matriz
+
+def gerar_mapa_aleatorio(linhas, colunas):
+    """Gera uma matriz com distribuição probabilística inicial de floresta."""
+    nova_matriz = []
+    for _ in range(linhas):
+        linha = []
+        for _ in range(colunas):
+            # Probabilidades: 70% Árvore, 25% Vazio, 5% Fogo inicial
+            sorteio = random.random()
+            if sorteio < 0.70:
+                estado = 1  # Árvore[cite: 7]
+            elif sorteio < 0.95:
+                estado = 0  # Vazio[cite: 7]
+            else:
+                estado = 2  # Fogo[cite: 7]
+            linha.append(estado)
+        nova_matriz.append(linha)
+    return nova_matriz
 
 def desenhar_grade(tela, matriz, linhas, colunas, tamanho_celula):
     for x in range(linhas):
@@ -59,7 +77,7 @@ def desenhar_painel(tela, matriz, geracao, pausado, fonte_bold, fonte_sm, largur
     status_txt = "PAUSADO" if pausado else "RODANDO"
     cor_status = (255, 100, 100) if pausado else (100, 255, 100)
     
-    # Linha 1 - Info
+    # Linha 1 - Info de Estado e População
     txt_geracao = fonte_bold.render(f"Geração: {geracao}", True, COR_TEXTO_DESTAQUE)
     txt_status = fonte_bold.render(f"Estado: {status_txt}", True, cor_status)
     txt_arvores = fonte_bold.render(f"Árvores: {arvores}", True, COR_ARVORE)
@@ -74,21 +92,22 @@ def desenhar_painel(tela, matriz, geracao, pausado, fonte_bold, fonte_sm, largur
     tela.blit(txt_cinzas, (520, altura_grade + 12))
     tela.blit(txt_vazio, (630, altura_grade + 12))
     
-    # Linha 2 - Informações de Regras
+    # Linha 2 - Informações das Regras
     txt_regras = fonte_sm.render(
         "Dinâmica: Raios/Combustão espontânea (0.2%) | Germinação contínua (1.5%)", 
         True, (170, 170, 170)
     )
     tela.blit(txt_regras, (15, altura_grade + 48))
     
-    # Linha 3 - Instruções
+    # Linha 3 - Comandos de Controle (Inclui Tecla G)
     txt_comandos = fonte_sm.render(
-        "[ESPAÇO]: Play/Pause  |  [R]: Reset  |  [S/Seta]: Passo  |  [Clique no Mapa]: Alterar Célula", 
+        "[ESPAÇO]: Play/Pause | [G]: Gerar Novo Mapa | [R]: Reset | [S]: Step | [Clique]: Alterar", 
         True, (220, 220, 220)
     )
     tela.blit(txt_comandos, (15, altura_grade + 78))
 
 def contar_vizinhos_em_chamas(matriz, x, y, linhas, colunas):
+    """Contagem usando Vizinhança de Moore (8 vizinhos)."""
     fogo_ao_redor = 0
     for i in [-1, 0, 1]:
         for j in [-1, 0, 1]:
@@ -107,26 +126,26 @@ def contar_vizinhos_em_chamas(matriz, x, y, linhas, colunas):
 def calcular_proxima_geracao(matriz_atual, linhas, colunas):
     proxima_matriz = copy.deepcopy(matriz_atual)
     
-    P_RAIO = 0.002        # 0.2% de chance de fogo espontâneo
-    P_REGENERACAO = 0.015 # 1.5% de chance de nascer árvore em solo vazio
+    P_RAIO = 0.002        # 0.2% de chance de combustão espontânea
+    P_REGENERACAO = 0.015 # 1.5% de chance de nascer nova árvore[cite: 7]
     
     for x in range(linhas):
         for y in range(colunas):
             estado = matriz_atual[x][y]
             
             if estado == 2:
-                proxima_matriz[x][y] = 3
+                proxima_matriz[x][y] = 3  # Fogo vira cinza[cite: 7]
             elif estado == 3:
-                proxima_matriz[x][y] = 0
+                proxima_matriz[x][y] = 0  # Cinza vira solo vazio[cite: 7]
             elif estado == 1:
                 fogo_perto = contar_vizinhos_em_chamas(matriz_atual, x, y, linhas, colunas)
                 if fogo_perto >= 1:
-                    proxima_matriz[x][y] = 2
+                    proxima_matriz[x][y] = 2  # Inflamação por vizinhança[cite: 7]
                 elif random.random() <= P_RAIO:
-                    proxima_matriz[x][y] = 2
+                    proxima_matriz[x][y] = 2  # Incêndio por raio
             elif estado == 0:
                 if random.random() <= P_REGENERACAO:
-                    proxima_matriz[x][y] = 1
+                    proxima_matriz[x][y] = 1  # Regeneração florestal[cite: 7]
                     
     return proxima_matriz
 
@@ -143,7 +162,6 @@ def main():
     fonte_bold = pygame.font.SysFont("Arial", 15, bold=True)
     fonte_sm = pygame.font.SysFont("Arial", 13)
     
-    # Cálculo para preencher perfeitamente a largura sem espaço preto sobressalente
     tamanho_celula = LARGURA_DESEJADA // colunas
     largura_real = tamanho_celula * colunas
     altura_grade_real = tamanho_celula * linhas
@@ -176,7 +194,12 @@ def main():
             elif evento.type == pygame.KEYDOWN:
                 if evento.key == pygame.K_SPACE:
                     simulacao_pausada = not simulacao_pausada
+                elif evento.key == pygame.K_g:
+                    # Gera uma nova floresta completamente aleatória
+                    grade_atual = gerar_mapa_aleatorio(linhas, colunas)
+                    contador_geracao = 0
                 elif evento.key == pygame.K_r:
+                    # Reseta para o estado inicial lido do arquivo TXT
                     grade_atual = copy.deepcopy(grade_inicial)
                     simulacao_pausada = True
                     contador_geracao = 0
