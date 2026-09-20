@@ -2,20 +2,21 @@ import pygame
 import sys
 import random
 import copy
+import os
 
+# Configurações de Interface
+LARGURA_DESEJADA = 800  # Largura total da janela
+ALTURA_PAINEL = 130     # Altura do painel inferior
 
-TAMANHO_CELULA = 140 # Tamanho de cada quadradinho na tela em pixels
-LARGURA_TELA = 800
-ALTURA_TELA = 600
+# Cores da Simulação (RGB)
+COR_VAZIO = (200, 200, 200)       # 0: Solo Vazio
+COR_ARVORE = (34, 139, 34)        # 1: Árvore
+COR_FOGO = (255, 69, 0)           # 2: Fogo
+COR_CINZAS = (105, 105, 105)      # 3: Cinzas
+COR_FUNDO = (0, 0, 0)             # Borda das células
+COR_PAINEL = (25, 25, 25)         # Fundo do painel
+COR_TEXTO_DESTAQUE = (255, 215, 0) # Dourado
 
-# Cores baseadas na sua documentação (RGB)
-COR_VAZIO = (200, 200, 200)   # 0: Cinza Claro
-COR_ARVORE = (34, 139, 34)    # 1: Verde
-COR_FOGO = (255, 69, 0)       # 2: Vermelho/Laranja
-COR_CINZAS = (105, 105, 105)  # 3: Cinza Escuro
-COR_FUNDO = (0, 0, 0)         # Preto para as linhas da grade
-
-# Lê o arquivo de configuração para as matrizes
 def carregar_estado_inicial(nome_arquivo):
     matriz = []
     with open(nome_arquivo, 'r') as arquivo:
@@ -30,110 +31,173 @@ def carregar_estado_inicial(nome_arquivo):
             
     return linhas_total, colunas_total, matriz
 
-
-def desenhar_grade(tela, matriz, linhas, colunas):
-    tela.fill(COR_FUNDO) # Limpa a tela
-    
+def desenhar_grade(tela, matriz, linhas, colunas, tamanho_celula):
     for x in range(linhas):
         for y in range(colunas):
             estado = matriz[x][y]
             
-            # Descobre qual cor usar dependendo do número
             if estado == 0: cor = COR_VAZIO
             elif estado == 1: cor = COR_ARVORE
             elif estado == 2: cor = COR_FOGO
             elif estado == 3: cor = COR_CINZAS
             
-            # Desenha o quadrado (tela, cor, (pos_X, pos_Y, largura, altura))
-            # Multiplicar por TAMANHO_CELULA para não ficarem colados no canto
-            pygame.draw.rect(tela, cor, (y * TAMANHO_CELULA, x * TAMANHO_CELULA, TAMANHO_CELULA - 1, TAMANHO_CELULA - 1))
+            pygame.draw.rect(
+                tela, 
+                cor, 
+                (y * tamanho_celula, x * tamanho_celula, tamanho_celula - 1, tamanho_celula - 1)
+            )
+
+def desenhar_painel(tela, matriz, geracao, pausado, fonte_bold, fonte_sm, largura_tela, altura_grade):
+    pygame.draw.rect(tela, COR_PAINEL, (0, altura_grade, largura_tela, ALTURA_PAINEL))
+    
+    # Contadores
+    vazio = sum(linha.count(0) for linha in matriz)
+    arvores = sum(linha.count(1) for linha in matriz)
+    fogo = sum(linha.count(2) for linha in matriz)
+    cinzas = sum(linha.count(3) for linha in matriz)
+    
+    status_txt = "PAUSADO" if pausado else "RODANDO"
+    cor_status = (255, 100, 100) if pausado else (100, 255, 100)
+    
+    # Linha 1 - Info
+    txt_geracao = fonte_bold.render(f"Geração: {geracao}", True, COR_TEXTO_DESTAQUE)
+    txt_status = fonte_bold.render(f"Estado: {status_txt}", True, cor_status)
+    txt_arvores = fonte_bold.render(f"Árvores: {arvores}", True, COR_ARVORE)
+    txt_fogo = fonte_bold.render(f"Fogo: {fogo}", True, COR_FOGO)
+    txt_cinzas = fonte_bold.render(f"Cinzas: {cinzas}", True, COR_CINZAS)
+    txt_vazio = fonte_bold.render(f"Vazio: {vazio}", True, COR_VAZIO)
+    
+    tela.blit(txt_geracao, (15, altura_grade + 12))
+    tela.blit(txt_status, (140, altura_grade + 12))
+    tela.blit(txt_arvores, (290, altura_grade + 12))
+    tela.blit(txt_fogo, (420, altura_grade + 12))
+    tela.blit(txt_cinzas, (520, altura_grade + 12))
+    tela.blit(txt_vazio, (630, altura_grade + 12))
+    
+    # Linha 2 - Informações de Regras
+    txt_regras = fonte_sm.render(
+        "Dinâmica: Raios/Combustão espontânea (0.2%) | Germinação contínua (1.5%)", 
+        True, (170, 170, 170)
+    )
+    tela.blit(txt_regras, (15, altura_grade + 48))
+    
+    # Linha 3 - Instruções
+    txt_comandos = fonte_sm.render(
+        "[ESPAÇO]: Play/Pause  |  [R]: Reset  |  [S/Seta]: Passo  |  [Clique no Mapa]: Alterar Célula", 
+        True, (220, 220, 220)
+    )
+    tela.blit(txt_comandos, (15, altura_grade + 78))
 
 def contar_vizinhos_em_chamas(matriz, x, y, linhas, colunas):
     fogo_ao_redor = 0
-    # Percorre de -1 a 1 para x e y (os 8 vizinhos ao redor)
     for i in [-1, 0, 1]:
         for j in [-1, 0, 1]:
             if i == 0 and j == 0:
-                continue # Pula a própria célula central
+                continue
             
             vizinho_x = x + i
             vizinho_y = y + j
             
-            # Verifica se o vizinho está dentro dos limites da grade para não dar erro
             if 0 <= vizinho_x < linhas and 0 <= vizinho_y < colunas:
-                if matriz[vizinho_x][vizinho_y] == 2: # 2 é o estado de Fogo
+                if matriz[vizinho_x][vizinho_y] == 2:
                     fogo_ao_redor += 1
                     
     return fogo_ao_redor
 
 def calcular_proxima_geracao(matriz_atual, linhas, colunas):
-    # Cria uma cópia da matriz para servir de buffer duplo
     proxima_matriz = copy.deepcopy(matriz_atual)
+    
+    P_RAIO = 0.002        # 0.2% de chance de fogo espontâneo
+    P_REGENERACAO = 0.015 # 1.5% de chance de nascer árvore em solo vazio
     
     for x in range(linhas):
         for y in range(colunas):
             estado = matriz_atual[x][y]
             
-            # Regra 1: Fogo (2) vira Cinzas (3)
             if estado == 2:
                 proxima_matriz[x][y] = 3
-                
-            # Regra 2: Cinzas (3) vira Vazio (0)
             elif estado == 3:
                 proxima_matriz[x][y] = 0
-                
-            # Regra 3: Árvore (1) pega fogo se tiver >= 1 vizinho em chamas
             elif estado == 1:
                 fogo_perto = contar_vizinhos_em_chamas(matriz_atual, x, y, linhas, colunas)
                 if fogo_perto >= 1:
                     proxima_matriz[x][y] = 2
-                    
-            # Regra 4: Vazio (0) tem probabilidade de ~0.5% de virar Árvore (1)
+                elif random.random() <= P_RAIO:
+                    proxima_matriz[x][y] = 2
             elif estado == 0:
-                # random.random() gera um número entre 0.0 e 1.0 (0.005 = 0.5%)
-                if random.random() <= 0.005:
+                if random.random() <= P_REGENERACAO:
                     proxima_matriz[x][y] = 1
                     
     return proxima_matriz
 
-
 def main():
-    # Carrega o mapa inicial
-    linhas, colunas, grade_atual = carregar_estado_inicial("estado_inicial.txt")
+    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+    caminho_arquivo = os.path.join(diretorio_atual, "estado_inicial.txt")
+
+    linhas, colunas, grade_inicial = carregar_estado_inicial(caminho_arquivo)
+    grade_atual = copy.deepcopy(grade_inicial)
     
     pygame.init()
-    tela = pygame.display.set_mode((colunas * TAMANHO_CELULA, linhas * TAMANHO_CELULA))
+    pygame.font.init()
+    
+    fonte_bold = pygame.font.SysFont("Arial", 15, bold=True)
+    fonte_sm = pygame.font.SysFont("Arial", 13)
+    
+    # Cálculo para preencher perfeitamente a largura sem espaço preto sobressalente
+    tamanho_celula = LARGURA_DESEJADA // colunas
+    largura_real = tamanho_celula * colunas
+    altura_grade_real = tamanho_celula * linhas
+    
+    tela = pygame.display.set_mode((largura_real, altura_grade_real + ALTURA_PAINEL))
     pygame.display.set_caption("Simulador de Incêndio Florestal")
     
-    # Variáveis de controle
-    rodando = True
-    simulacao_pausada = True # Começa pausado para ver o estado inicial
+    relogio = pygame.time.Clock()
     
+    rodando = True
+    simulacao_pausada = True
+    contador_geracao = 0
     
     while rodando:
-        # Verifica se o usuário apertou algum botão
         for evento in pygame.event.get():
-            if evento.type == pygame.QUIT: # Clicou no X para fechar
+            if evento.type == pygame.QUIT:
                 rodando = False
             
-            if evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_SPACE: # Apertou Espaço
-                    simulacao_pausada = not simulacao_pausada # Inverte entre Play e Pause
-        
+            elif evento.type == pygame.MOUSEBUTTONDOWN:
+                if evento.button == 1:
+                    pos_x, pos_y = evento.pos
+                    if pos_y < altura_grade_real:
+                        coluna_clicada = pos_x // tamanho_celula
+                        linha_clicada = pos_y // tamanho_celula
+                        
+                        if 0 <= linha_clicada < linhas and 0 <= coluna_clicada < colunas:
+                            estado_atual = grade_atual[linha_clicada][coluna_clicada]
+                            grade_atual[linha_clicada][coluna_clicada] = (estado_atual + 1) % 4
+            
+            elif evento.type == pygame.KEYDOWN:
+                if evento.key == pygame.K_SPACE:
+                    simulacao_pausada = not simulacao_pausada
+                elif evento.key == pygame.K_r:
+                    grade_atual = copy.deepcopy(grade_inicial)
+                    simulacao_pausada = True
+                    contador_geracao = 0
+                elif evento.key == pygame.K_s or evento.key == pygame.K_RIGHT:
+                    if simulacao_pausada:
+                        grade_atual = calcular_proxima_geracao(grade_atual, linhas, colunas)
+                        contador_geracao += 1
         
         if not simulacao_pausada:
             grade_atual = calcular_proxima_geracao(grade_atual, linhas, colunas)
-            pygame.time.delay(300) # Pausa de 300 milissegundos para podermos ver a animação
+            contador_geracao += 1
             
-        # Pinta os quadradinhos na tela
-        desenhar_grade(tela, grade_atual, linhas, colunas)
+        tela.fill(COR_FUNDO)
+        desenhar_grade(tela, grade_atual, linhas, colunas, tamanho_celula)
+        desenhar_painel(tela, grade_atual, contador_geracao, simulacao_pausada, fonte_bold, fonte_sm, largura_real, altura_grade_real)
         
-        # Atualiza a tela
         pygame.display.flip()
+        relogio.tick(5)
 
     pygame.quit()
     sys.exit()
-
 
 if __name__ == "__main__":
     main()
