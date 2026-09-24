@@ -1,48 +1,144 @@
 # Simulador de Incêndio Florestal 🌲🔥
 
-Este projeto é um **Autômato Celular** desenvolvido para a disciplina de Computação Científica. Ele simula a propagação de um incêndio em uma floresta, bem como o processo de regeneração natural da vegetação.
+Este projeto implementa um autômato celular 2D para simular a propagação de incêndio em uma floresta e a regeneração natural da vegetação. A simulação é visualizada em uma grade representando diferentes estados celulares e pode ser controlada por teclado e mouse em tempo real.
 
-## 📋 Visão Geral e Objetivo
-O modelo equilibra simplicidade computacional e visualização gráfica intuitiva, demonstrando como regras locais em uma grade 2D geram padrões complexos de espalhamento de calor e renovação do ecossistema. O projeto cumpre todos os requisitos obrigatórios, incluindo a execução simultânea (buffer duplo), controles de Play/Pause e leitura de estado inicial via arquivo `.txt`.
+## Objetivo
 
-## 📐 Topologia e Vizinhança
-A simulação adota a **Vizinhança de Moore** ($r=1$), onde cada célula central interage com suas **8 células vizinhas**: norte, sul, leste, oeste e as quatro diagonais. 
-> **Por que Moore?** Essa vizinhança permite uma dispersão de chamas mais circular e orgânica (isotrópica) na grade bidimensional, evitando o padrão irreal em formato de cruz.
+O objetivo do sistema é demonstrar como regras locais simples podem gerar comportamentos complexos em uma malha espacial. Nesse caso, a evolução da grade depende do estado das células vizinhas, criando padrões de queima, resfriamento e recolonização da área.
 
-## 🎨 Representação dos Estados
-Cada célula pertence a um conjunto finito de 4 estados possíveis:
+## Como o modelo funciona
 
-| Valor | Identificação | Representação Visual | Significado / Dinâmica |
-| :---: | :--- | :--- | :--- |
-| **0** | Vazio / Clareira | Cinza Claro | Solo sem vegetação. Sujeito a regeneração natural espontânea. |
-| **1** | Árvore / Floresta | Verde | Vegetação combustível saudável. Inflama quando em contato com calor vizinho. |
-| **2** | Fogo / Em Chamas | Laranja / Vermelho | Célula ativa em processo de queima. Propaga fagulhas para árvores adjacentes. |
-| **3** | Cinzas / Resíduo | Cinza Escuro | Material recém-queimado em resfriamento. Não propaga mais fogo. |
+A simulação usa uma grade bidimensional em que cada célula pode assumir um dos quatro estados abaixo:
 
-## ⚙️ Regras de Transição (Dinâmica do Modelo)
-A transição de tempo ocorre de maneira síncrona, aplicando as seguintes regras de evolução:
-1. **Evolução do Fogo:** Célula com estado `2` (Fogo) torna-se `3` (Cinzas) na iteração subsequente.
-2. **Dissipação das Cinzas:** Célula com estado `3` (Cinzas) arrefece e torna-se `0` (Vazio).
-3. **Inflamação de Árvores:** Célula com estado `1` (Árvore) torna-se `2` (Fogo) se possuir **pelo menos 1 vizinho** em chamas.
-4. **Regeneração Espontânea:** Célula com estado `0` (Vazio) possui probabilidade fixa de $0.5\%$ de germinar uma nova muda e transitar para o estado `1` (Árvore).
+| Valor | Estado | Cor | Descrição |
+| :---: | --- | --- | --- |
+| 0 | Vazio | Cinza claro | Solo sem vegetação |
+| 1 | Árvore | Verde | Vegetação combustível |
+| 2 | Fogo | Laranja/vermelho | Célula em combustão |
+| 3 | Cinza | Cinza escuro | Área já queimada |
 
-## 🚀 Como Executar o Projeto
+### Vizinhança
 
-### Pré-requisitos
-Certifique-se de ter o **Python** instalado na sua máquina, juntamente com a biblioteca **Pygame** para a interface gráfica.
+A regra de propagação utiliza a vizinhança de Moore com raio 1, ou seja, cada célula analisa os 8 vizinhos ao seu redor.
+
+### Regras de transição
+
+As regras implementadas no código são as seguintes:
+
+1. Célula com estado 2 (fogo) vira 3 (cinza) na próxima geração.
+2. Célula com estado 3 (cinza) vira 0 (vazio) na próxima geração.
+3. Célula com estado 1 (árvore) vira 2 (fogo) se houver pelo menos 1 vizinho em chamas.
+4. Célula com estado 1 (árvore) também pode pegar fogo por chance aleatória de raio, configurada em 0,2%.
+5. Célula com estado 0 (vazio) pode regenerar uma árvore com probabilidade de 1,5%.
+
+Essas transições são calculadas de forma síncrona, gerando uma nova matriz para a próxima geração.
+
+## Funcionalidades
+
+- Leitura do estado inicial a partir de um arquivo .txt
+- Visualização gráfica da grade com Pygame
+- Simulação em execução ou pausada
+- Geração aleatória de novo mapa
+- Reset para o cenário inicial
+- Execução passo a passo
+- Edição manual da grade com clique do mouse
+- Painel com contagem por estado e informações do sistema
+
+## Estrutura do projeto
+
+```text
+automato_celular/
+├── readme.md
+├── src/
+│   ├── main.py
+│   └── estado_inicial.txt
+└── .gitignore
+```
+
+### Arquivos principais
+
+- `src/main.py`: contém toda a lógica da simulação, interface gráfica e regras do autômato celular.
+- `src/estado_inicial.txt`: define a grade inicial do ambiente, com as dimensões e os estados das células.
+
+## Formato do arquivo de estado inicial
+
+O arquivo de configuração segue o formato:
+
+```text
+linhas colunas
+estado1 estado2 estado3 ...
+...
+```
+
+Exemplo:
+
+```text
+5 5
+1 1 1 0 0
+1 2 1 0 1
+1 1 1 1 1
+0 0 1 1 1
+0 1 1 0 0
+```
+
+A primeira linha informa a quantidade de linhas e colunas da matriz. As linhas seguintes contêm os valores de cada célula.
+
+## Pré-requisitos
+
+- Python 3
+- Biblioteca Pygame
+
+## Como executar
+
+No terminal, na raiz do projeto:
+
 ```bash
-pip install pygame
+python -m pip install pygame
+python src/main.py
+```
 
-## 🔮 Expansões Futuras (Diferenciais em Desenvolvimento)
+Se estiver usando o ambiente virtual do projeto, pode rodar também:
 
-Para atender integralmente aos requisitos opcionais e diferenciais propostos na especificação do projeto, as seguintes funcionalidades estão mapeadas para o próximo ciclo de desenvolvimento:
+```bash
+python src/main.py
+```
 
-*   **Controles de Passo e Reinício:** 
-    *   Implementação da função *Step*, permitindo executar uma única iteração por vez para análise detalhada.
-    *   Implementação da função *Reset*, para retornar a simulação ao seu estado inicial.
-*   **Interação em Tempo Real:** Permitir que o usuário edite a grade com o mouse, incluindo desenhar ou apagar células diretamente na tela.
-*   **Exportação de Cenários:** Adição de uma funcionalidade para salvar o estado atual do autômato em um novo arquivo de texto.
-*   **Telemetria e Ajustes:** 
-    *   Exibir informações em tempo real na interface, como o número de iterações e a quantidade de células em cada estado.
-    *   Permitir que o usuário ajuste a velocidade da simulação dinamicamente.
-*   **Elementos Criativos Avançados:** Adicionar variáveis ambientais e geográficas à regra de propagação, como a influência do vento ou a presença de obstáculos incombustíveis.
+## Controles
+
+- Espaço: pausa/continua a simulação
+- G: gera um novo mapa aleatório
+- R: reinicia para o estado inicial carregado do arquivo
+- S ou seta para a direita: executa uma etapa manualmente
+- Clique com botão esquerdo: altera o estado da célula clicada
+
+## Painel da interface
+
+A interface mostra:
+
+- geração atual
+- estado da simulação (rodando/pausado)
+- quantidade de árvores, fogo, cinzas e células vazias
+- mensagem das regras ativas da simulação
+
+## Observações técnicas
+
+A aplicação usa:
+
+- `pygame` para a rendering da interface
+- `copy.deepcopy` para preservar matrizes entre gerações
+- `random` para probabilidades de combustão e regeneração
+- leitura direta de um arquivo `.txt` para carregar o cenário inicial
+
+## Possíveis melhorias
+
+Algumas evoluções interessantes para o projeto incluem:
+
+- edição visual mais intuitiva por ferramenta de desenho
+- botão de reinício em interface gráfica
+- salvamento do cenário atual em arquivo
+- ajuste de velocidade da simulação
+- adição de vento, obstáculos ou regras ambientais mais realistas
+
+## Conclusão
+
+O projeto funciona como um exemplo prático de automato celular aplicado à dinâmica de ecossistemas, combinando computação científica, modelagem espacial e visualização interativa em tempo real.
